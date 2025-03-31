@@ -1,3 +1,5 @@
+#include <stdbool.h>
+
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
@@ -25,8 +27,11 @@ typedef struct {
 
   int len;
   int pos;
+
+  int *matching_bracket;
 } Lexer;
 
+bool preprocess_matching_brackets(Lexer *lex);
 Lexer *make_lex(char *filename);
 Token next(Lexer *lex);
 void free_lexer(Lexer *lex);

@@ -1,5 +1,7 @@
 #include "lexer.h"
+#include <assert.h>
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,8 +10,42 @@ static long get_size(FILE *fp);
 static char *strip_input(char *original);
 static Lexer *populate_tok_list(Lexer *lex);
 
-Lexer *populate_tok_list(Lexer *lex);
-Token next(Lexer *lex);
+bool preprocess_matching_brackets(Lexer *lex) {
+  lex->matching_bracket = calloc(lex->len, sizeof(int));
+  if (lex->matching_bracket == NULL) {
+    fprintf(stderr, "Memory allocation failed\n");
+    return false;
+  }
+
+  int *stack = calloc(lex->len, sizeof(int));
+  int top = -1;
+
+  for (int i = 0; i < lex->len; i++) {
+    if (lex->tok_list[i].sym == LOOP_OPEN) {
+      stack[++top] = i;
+    } else if (lex->tok_list[i].sym == LOOP_CLOSE) {
+      if (top == -1) {
+        fprintf(stderr, "Syntax Error: Unmatched ']'\n");
+
+        free(stack);
+        return false;
+      }
+      int match = stack[top--];
+      lex->matching_bracket[match] = i;
+      lex->matching_bracket[i] = match;
+    }
+  }
+
+  if (top != -1) {
+    fprintf(stderr, "Syntax Error: Unmatched '['\n");
+
+    free(stack);
+    return false;
+  }
+
+  free(stack);
+  return true;
+}
 
 Lexer *make_lex(char *filename) {
   FILE *input = fopen(filename, "r");
@@ -25,6 +61,14 @@ Lexer *make_lex(char *filename) {
   Lexer *lex = calloc(1, sizeof(Lexer));
   lex->program = program;
   lex = populate_tok_list(lex);
+
+  assert(lex->pos == 0);
+
+  if (preprocess_matching_brackets(lex) == false) {
+    free_lexer(lex);
+    fclose(input);
+    return NULL;
+  }
 
   fclose(input);
   return lex;
@@ -117,6 +161,7 @@ Token next(Lexer *lex) {
 }
 
 void free_lexer(Lexer *lex) {
+  free(lex->matching_bracket);
   free(lex->program);
   free(lex->tok_list);
   free(lex);

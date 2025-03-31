@@ -35,6 +35,12 @@ void run_brainfuck(Lexer *lex) {
     return;
   }
 
+  if (interp->lexed == NULL) {
+    free(interp->registers);
+    free(interp);
+    return;
+  }
+
   run_brainfuck_helper(interp);
 
   free_interpreter(interp);
@@ -43,6 +49,10 @@ void run_brainfuck(Lexer *lex) {
 static void run_brainfuck_helper(Interpreter *interp) {
   if (interp == NULL || interp->current_pos < 0) {
     interp->current_pos = 0;
+    return;
+  }
+
+  if (interp->lexed == NULL) {
     return;
   }
 
@@ -67,6 +77,16 @@ static void run_brainfuck_helper(Interpreter *interp) {
   case SYM_EOF:
   case ERROR:
     return;
+  case LOOP_OPEN:
+    if (interp->registers[interp->current_pos] == 0) {
+      lex->pos = lex->matching_bracket[lex->pos]; // Jump to matching `]`
+    }
+    break;
+  case LOOP_CLOSE:
+    if (interp->registers[interp->current_pos] != 0) {
+      lex->pos = lex->matching_bracket[lex->pos]; // Jump back to `[`
+    }
+    break;
   case DEC_PTR:
     interp->current_pos -= lex->tok_list[lex->pos].repeat;
     break;

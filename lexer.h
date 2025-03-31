@@ -11,6 +11,7 @@ typedef enum {
   INPUT = ',',
   LOOP_OPEN = '[',
   LOOP_CLOSE = ']',
+  ERROR = '&',
 } Symbols;
 
 typedef struct {
@@ -20,8 +21,14 @@ typedef struct {
 
 typedef struct {
   char *program;
-  Symbols *sym_list;
+  Token *tok_list;
+
+  int len;
   int pos;
 } Lexer;
+
+Lexer *make_lex(char *filename);
+Token next(Lexer *lex);
+void free_lexer(Lexer *lex);
 
 #endif

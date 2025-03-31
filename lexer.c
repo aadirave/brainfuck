@@ -4,7 +4,33 @@
 #include <stdlib.h>
 #include <string.h>
 
-char *strip_input(char *original) {
+static long get_size(FILE *fp);
+static char *strip_input(char *original);
+static Lexer *populate_tok_list(Lexer *lex);
+
+Lexer *populate_tok_list(Lexer *lex);
+Token next(Lexer *lex);
+
+Lexer *make_lex(char *filename) {
+  FILE *input = fopen(filename, "r");
+  if (input == NULL) {
+    return NULL;
+  }
+
+  long size = get_size(input);
+
+  char *program = calloc(size + 1, sizeof(char));
+  fread(program, sizeof(char), size, input);
+
+  Lexer *lex = calloc(1, sizeof(Lexer));
+  lex->program = program;
+  lex = populate_tok_list(lex);
+
+  fclose(input);
+  return lex;
+}
+
+static char *strip_input(char *original) {
   int req = 0, idx = 0;
   while (original[idx] != 0) {
     if (!isspace(original[idx])) {
@@ -13,7 +39,7 @@ char *strip_input(char *original) {
     idx++;
   }
 
-  char *stripped = calloc(req, sizeof(char));
+  char *stripped = calloc(req + 1, sizeof(char));
   if (stripped == NULL) {
     free(original);
     return NULL;
@@ -32,49 +58,74 @@ char *strip_input(char *original) {
   return stripped;
 }
 
-Lexer *populate_symlist(Lexer *lex) {
+static Lexer *populate_tok_list(Lexer *lex) {
   lex->program = strip_input(lex->program);
-  int idx = 0;
+  lex->tok_list = calloc(strlen(lex->program), sizeof(Token));
 
-  Symbols *symlist = calloc(strlen(lex->program), sizeof(Symbols));
-
-  while (lex->program[idx] != 0) {
-    switch (lex->program[idx]) {
-    case '\0':
-      symlist[idx] = SYM_EOF;
-      break;
-    case '<':
-      symlist[idx] = DEC_PTR;
-      break;
-    case '>':
-      symlist[idx] = INC_CELL;
-      break;
-    case '+':
-      symlist[idx] = OUTPUT;
-      break;
-    case '-':
-      symlist[idx] = INPUT;
-      break;
-    case '[':
-      symlist[idx] = LOOP_OPEN;
-      break;
-    case ']':
-      symlist[idx] = LOOP_CLOSE;
-      break;
-    default:
-      free(symlist);
-      free(lex);
-      return NULL;
-    }
+  Token read;
+  int i = 0;
+  while ((read = next(lex)).sym != SYM_EOF && read.sym != ERROR) {
+    lex->tok_list[i] = read;
+    i++;
   }
 
-  lex->sym_list = symlist;
+  lex->len = i;
 
+  // reset position to read token list
+  lex->pos = 0;
   return lex;
+}
+
+Token next(Lexer *lex) {
+  char *stream = lex->program;
+  int pos = lex->pos;
+
+  Token to_return = {.repeat = 0};
+
+  Symbols to_read;
+  switch (stream[pos]) {
+  case 0:
+    return (Token){.sym = SYM_EOF, .repeat = 1};
+  case '<':
+  case '>':
+  case '+':
+  case '-':
+  case '.':
+  case ',':
+    to_read = stream[pos];
+    break;
+  case '[':
+  case ']':
+    // dealing with this by itself to do recursive descent later
+    // can't really group this
+    lex->pos++;
+    return (Token){.sym = stream[pos], .repeat = 1};
+  default:
+    return (Token){.sym = ERROR, .repeat = 0};
+  }
+
+  to_return.sym = to_read;
+
+  while (stream[pos] == to_read) {
+    pos++;
+    to_return.repeat++;
+  }
+
+  lex->pos = pos;
+
+  return to_return;
 }
 
 void free_lexer(Lexer *lex) {
   free(lex->program);
-  free(lex->sym_list);
+  free(lex->tok_list);
   free(lex);
+}
+
+static long get_size(FILE *fp) {
+  fseek(fp, 0L, SEEK_END);
+  long size = ftell(fp);
+  fseek(fp, 0L, SEEK_SET);
+
+  return size;
 }
